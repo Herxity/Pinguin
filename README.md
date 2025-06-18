@@ -14,5 +14,6 @@ Follow my blog for this [here](https://medium.com/@ruben.alias715)
 7. Break apart server.cpp into smaller files
 8. Better file structure
 9. Dynamic routes
-10. HTTPS
-11. Multiprocessing
+10. CORS
+11. HTTPS
+12. Multiprocessing
