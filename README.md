@@ -12,6 +12,7 @@ Follow my blog for this [here](https://medium.com/@ruben.alias715)
 5. Deep routes
 6. Query Parameters
 7. Break apart server.cpp into smaller files
-8. Dynamic routes
-9. HTTPS
-10. Multiprocessing
+8. Better file structure
+9. Dynamic routes
+10. HTTPS
+11. Multiprocessing
