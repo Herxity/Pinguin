@@ -58,14 +58,14 @@ enum HttpVerbs{
 class HttpRequest{
     private:
         string http_host;
-        HttpVerbs http_verb;
-        string http_path;
+        HttpVerbs http_verb = HttpVerbs::GET;
+        string http_path = "/home/about";
         string http_protocol;
         time_t req_time;
     public:
         /// @brief Constructor that takes in a string and produces an HttpRequest Object
         /// @param str //The result of running str() on a char buffer of bytes received via websocket
-        HttpRequest();
+        HttpRequest(){}
 
         HttpRequest(string str) {  
             this->req_time = time(0);
@@ -170,7 +170,7 @@ class HttpResponse{
             return str;
         }
     public:
-        HttpResponse();
+        HttpResponse(){}
 
         HttpResponse(int clientSocket){
             this->clientSocket = clientSocket;
@@ -231,15 +231,30 @@ class Router{
 
         void addRoute(std::deque<string> route, HttpVerbs method, function<void (HttpRequest, HttpResponse)> callback){
             //TODO: Implement recursive cases
+            
             if (route.empty()){
+                cout<<"ADDED "<< method << endl;
                 route_methods[method] = callback;
+                return;
             }
+            string route_root = route[0];
+            cout<<"route_root: "<<route_root<<endl;
+            this->path = route_root;
+            cout<<"Entering..."<< route_root<<endl;
+            route.pop_front();
+            if(!routes.count(route_root)){
+                routes[route_root] = new Router();
+            }
+            if(!routes[route_root]){
+                cout<< COLOR("BAD REF!!!!", KRED)<<endl;
+            }
+            routes[route_root]->addRoute(route, method, callback); //Calls the private method
         }
 
-    protected:
-        map<HttpVerbs,function<void (HttpRequest, HttpResponse)>> route_methods;
-        map<string,Router> routes;
     public:
+        map<HttpVerbs,function<void (HttpRequest, HttpResponse)>> route_methods;
+        map<string,Router *> routes;
+        std::string path;
 
         std::deque<string> splitPathStringToRouteVector(string path){
             std::deque<string> route;
@@ -256,52 +271,95 @@ class Router{
                     start += length + string("/").size();
 
                 } while(true);
+                int length = path.length() - start;
+                route.push_back(path.substr(start,length));
             }
+
             return route;
         }
 
         void addRoute(string path, HttpVerbs method, function<void (HttpRequest, HttpResponse)> callback){
             //Implement base case
+            if(path[0] != '/'){
+                throw std::runtime_error("All routes must begin with /");
+            }
             std::deque<string> route = this->splitPathStringToRouteVector(path);
-
-            if(route.empty()){
-                this->addRoute(route, method, callback);
-                return;
+            if(*route.cbegin()==""){
+                route.pop_front();
             }
-            
-            if(!routes.count(route[0])){
-                routes[route[0]] = Router();
+            cout<< "Queue: [";
+            for(auto it:route){
+                cout << "\""<< it << "\",";
             }
-            route.pop_front();
-
-            routes[route[0]].addRoute(route, method, callback);
+            cout << "]\n" << endl;
+            this->addRoute(route, method, callback); //Calls the private method
+            HttpRequest req = HttpRequest();
+            HttpResponse res = HttpResponse();
+            this->routeRequest(req,res);
+            if(routes.find("home")!=routes.end() && routes["home"]->routes.find("about") != routes["home"]->routes.end()  && routes["home"]->routes["about"]->route_methods.find(HttpVerbs::GET)!=routes["home"]->routes["about"]->route_methods.end()){
+                cout<<"ADDED ROUTE AT /home/about"<<endl;
+                routes["home"]->routes["about"]->route_methods[HttpVerbs::GET](req,res);
+            }
         }
         
         void routeRequest(HttpRequest req, HttpResponse res){
             cout << COLOR("RECEIVED REQUEST ON PATH " + req.getHttpPath(), KGRN) << endl;
             std::deque<string> route = this->splitPathStringToRouteVector(req.getHttpPath());
             Router curr_router = *this;
+            // cout << this->routes.count("home") << endl;
+            // cout << this->routes.count("about") << endl;
+            route.pop_front();
+            cout<< "Queue: [";
+            for(auto it:route){
+                cout << "\""<< it << "\",";
+            }
+            cout << "]" << endl;
             while(!route.empty()){
                 if(curr_router.routes.count(route[0]) == 0){
-                    throw runtime_error("Invalid path.");//Replace with 405 error
+                    cout << COLOR("Invalid path at " +  route[0],KRED) << endl;//Replace with 405 error
+                    res.setHeaders({ {"content-type","text/html"}});
+                    res.setCode("405","METHOD NOT ALLOWED");
+                    res.setProtocol(req.getHttpProtocol());
+                    res.send();
+                    return;
                 }
-                curr_router = curr_router.routes[route[0]];
+                if(curr_router.path == ""){
+                    cout<<COLOR("NULL PROPERTY OF OBJECT.",KRED)<<endl;
+                }
+                else{
+                    cout<<(curr_router.path)<< "/";
+                }
+                curr_router = (*curr_router.routes[route[0]]);
                 route.pop_front();
             }
-            curr_router.route_methods[req.getHttpVerb()](req,res);
+            cout<<endl;
+            cout << "NUM METHODS FOR HTTP VERB " << req.getHttpVerb() << ": " << curr_router.route_methods.count(req.getHttpVerb()) << endl;
+            if (curr_router.route_methods.count(req.getHttpVerb())){
+                if(curr_router.route_methods[HttpVerbs::GET]){
+                    curr_router.route_methods[req.getHttpVerb()](req,res);
+                } else {
+                    cout << COLOR("This function call is unsafe", KRED) <<  endl;
+                }
+            } else {
+                res.setHeaders({ {"content-type","text/html"}});
+                res.setCode("405","METHOD NOT ALLOWED");
+                res.setProtocol(req.getHttpProtocol());
+                res.send();
+            }
+            
         }
     };
 
 class Server{
     private:
-        Router router;
+        
         int serverSocket;
         int reuse_addr_val = 1;
         sockaddr_in serverAddress;
         int clientSocket = -1;
         bool started = false;
     public:
-
+        Router router;
         Server(){
             this->serverSocket = socket(AF_INET, SOCK_STREAM| SOCK_NONBLOCK, 0); //serverSocket is a file descriptor
             setsockopt(serverSocket,SOL_SOCKET, SO_REUSEADDR, (char *) &this->reuse_addr_val, sizeof(int)); //Sets the socket option of reusing address to 1
@@ -391,15 +449,30 @@ class Server{
 };
 
 int main(void)  {
-    
+    // Router router = Router();
+    // router.addRoute("/home/about", HttpVerbs::GET,[](HttpRequest req, HttpResponse res){printf("Hello world");});
+
+    // router.routes[""].routes["home"].routes["about"].route_methods[HttpVerbs::GET](req,res);
+
     Server app = Server();
     app.GET("/", [](HttpRequest req, HttpResponse res){
+        printf("Hello world\n");
+        res.setHeaders({ {"content-type","text/html"}});
+        res.setCode("200","OK");
+        res.setProtocol(req.getHttpProtocol());
+        res.send();
+    });
+    app.GET("/home/about", [](HttpRequest req, HttpResponse res){
+        cout<<COLOR("LETS GO FUCKERSSSSS\n",KYEL)<<endl;
         res.setHeaders({ {"content-type","text/html"}});
         res.setCode("200","OK");
         res.setProtocol(req.getHttpProtocol());
         res.sendFile("index.html");
     });
-
+    
+    HttpRequest req = HttpRequest();
+    HttpResponse res = HttpResponse();
+    app.router.routeRequest(req,res);
     app.listen();
 
     
