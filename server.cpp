@@ -233,14 +233,11 @@ class Router{
             //TODO: Implement recursive cases
             
             if (route.empty()){
-                cout<<"ADDED "<< method << endl;
                 route_methods[method] = callback;
                 return;
             }
             string route_root = route[0];
-            cout<<"route_root: "<<route_root<<endl;
             this->path = route_root;
-            cout<<"Entering..."<< route_root<<endl;
             route.pop_front();
             if(!routes.count(route_root)){
                 routes[route_root] = new Router();
@@ -287,35 +284,18 @@ class Router{
             if(*route.cbegin()==""){
                 route.pop_front();
             }
-            cout<< "Queue: [";
-            for(auto it:route){
-                cout << "\""<< it << "\",";
-            }
-            cout << "]\n" << endl;
-            this->addRoute(route, method, callback); //Calls the private method
-            HttpRequest req = HttpRequest();
-            HttpResponse res = HttpResponse();
-            this->routeRequest(req,res);
-            if(routes.find("home")!=routes.end() && routes["home"]->routes.find("about") != routes["home"]->routes.end()  && routes["home"]->routes["about"]->route_methods.find(HttpVerbs::GET)!=routes["home"]->routes["about"]->route_methods.end()){
-                cout<<"ADDED ROUTE AT /home/about"<<endl;
-                routes["home"]->routes["about"]->route_methods[HttpVerbs::GET](req,res);
-            }
+	    this->addRoute(route, method, callback); //Calls the private method
         }
         
         void routeRequest(HttpRequest req, HttpResponse res){
             cout << COLOR("RECEIVED REQUEST ON PATH " + req.getHttpPath(), KGRN) << endl;
             std::deque<string> route = this->splitPathStringToRouteVector(req.getHttpPath());
-            Router curr_router = *this;
+            Router *curr_router = this;
             // cout << this->routes.count("home") << endl;
             // cout << this->routes.count("about") << endl;
             route.pop_front();
-            cout<< "Queue: [";
-            for(auto it:route){
-                cout << "\""<< it << "\",";
-            }
-            cout << "]" << endl;
             while(!route.empty()){
-                if(curr_router.routes.count(route[0]) == 0){
+                if(curr_router->routes.count(route[0]) == 0){
                     cout << COLOR("Invalid path at " +  route[0],KRED) << endl;//Replace with 405 error
                     res.setHeaders({ {"content-type","text/html"}});
                     res.setCode("405","METHOD NOT ALLOWED");
@@ -323,20 +303,12 @@ class Router{
                     res.send();
                     return;
                 }
-                if(curr_router.path == ""){
-                    cout<<COLOR("NULL PROPERTY OF OBJECT.",KRED)<<endl;
-                }
-                else{
-                    cout<<(curr_router.path)<< "/";
-                }
-                curr_router = (*curr_router.routes[route[0]]);
+                curr_router = curr_router->routes[route[0]];
                 route.pop_front();
             }
-            cout<<endl;
-            cout << "NUM METHODS FOR HTTP VERB " << req.getHttpVerb() << ": " << curr_router.route_methods.count(req.getHttpVerb()) << endl;
-            if (curr_router.route_methods.count(req.getHttpVerb())){
-                if(curr_router.route_methods[HttpVerbs::GET]){
-                    curr_router.route_methods[req.getHttpVerb()](req,res);
+            if (curr_router->route_methods.count(req.getHttpVerb())){
+                if(curr_router->route_methods[HttpVerbs::GET]){
+                    curr_router->route_methods[req.getHttpVerb()](req,res);
                 } else {
                     cout << COLOR("This function call is unsafe", KRED) <<  endl;
                 }
@@ -463,16 +435,12 @@ int main(void)  {
         res.send();
     });
     app.GET("/home/about", [](HttpRequest req, HttpResponse res){
-        cout<<COLOR("LETS GO FUCKERSSSSS\n",KYEL)<<endl;
         res.setHeaders({ {"content-type","text/html"}});
         res.setCode("200","OK");
         res.setProtocol(req.getHttpProtocol());
         res.sendFile("index.html");
     });
     
-    HttpRequest req = HttpRequest();
-    HttpResponse res = HttpResponse();
-    app.router.routeRequest(req,res);
     app.listen();
 
     
