@@ -1,5 +1,7 @@
-# C++ WEB SERVER
-This is my attempt at making a web server in C++ that can be used by others. The goal is to make it as user-friendly to develop with as possible, following designs found in higher-level languages like Python or Express.
+# Penguin
+A lightweight framework for buidling web servers in C++.
+
+Still in-progress. Check the Roadmap below for currently implemented features.
 
 Follow my blog for this [here](https://medium.com/@ruben.alias715)
 
