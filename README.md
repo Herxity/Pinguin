@@ -1,3 +1,5 @@
+![image](https://github.com/user-attachments/assets/a377bae9-afca-4ca7-9ca5-18fe7d47becc)
+
 # Pinguin
 A lightweight framework for buidling web servers in C++.
 
