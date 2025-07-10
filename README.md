@@ -1,4 +1,4 @@
-# Penguin
+# Pinguin
 A lightweight framework for buidling web servers in C++.
 
 Still in-progress. Check the Roadmap below for currently implemented features.
