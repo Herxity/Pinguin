@@ -1,2 +1,0 @@
-/home/ruben/cpp_server/CMakeFiles/edit_cache.dir
-/home/ruben/cpp_server/CMakeFiles/rebuild_cache.dir

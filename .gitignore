@@ -1,5 +1,5 @@
-./vscode
+.vscode/
 *.exe
 *.py
 server
-
+build/
