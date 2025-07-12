@@ -1,4 +1,4 @@
-#include "../include/server.h"
+#include "../include/pinguin.h"
 #include <unistd.h>
 #include <sys/wait.h>
 #include <curl/curl.h>

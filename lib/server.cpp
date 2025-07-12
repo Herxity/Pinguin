@@ -1,4 +1,4 @@
-#include "../include/server.h"
+#include "../include/pinguin.h"
 #include <iostream> //Basic print functions
 #include <unistd.h> //To close file descriptors
 #include <sys/socket.h> //Socket functionality
@@ -43,6 +43,8 @@ volatile int exit_flag=0;
 std::string COLOR(const std::string& text, const char* color_code) { //Because I grow weary of black and white.
     return std::string(color_code) + text + RST;
 }
+
+//HTTP REQUEST
 
 HttpRequest::HttpRequest(std::string str) 
 {  
@@ -117,6 +119,9 @@ void HttpRequest::printToTerminal(){
     strftime(t_buffer, sizeof(t_buffer), "%H:%M:%S", localTime); //Format time
     printf(COLOR("%s ==> [%s] %s\n", KYEL).c_str(),t_buffer,this->getHttpVerbString().c_str(), this->getHttpPath().c_str());
 }     
+
+//HTTP RESPONSE
+
 std::string HttpResponse::format_http_response(){
     std::string resp = this->http_protocol + " " + this->status_code + " " + this->status_message + "\r\n"
             + this->format_headers()
@@ -173,6 +178,8 @@ void HttpResponse::setCode(std::string code, std::string message){
 void HttpResponse::setProtocol(std::string protocol){
     this->http_protocol = protocol;
 }
+
+//ROUTER
 
 void Router::addRoute(std::deque<std::string> route, HttpVerbs method, std::function<void (HttpRequest, HttpResponse)> callback){
     //TODO: Implement recursive cases
@@ -231,8 +238,6 @@ void Router::routeRequest(HttpRequest req, HttpResponse res){
     std::cout << COLOR("RECEIVED REQUEST ON PATH " + req.getHttpPath(), KGRN) << std::endl;
     std::deque<std::string> route = this->splitPathStringToRouteVector(req.getHttpPath());
     Router *curr_router = this;
-    // cout << this->routes.count("home") << endl;
-    // cout << this->routes.count("about") << endl;
     route.pop_front();
     while(!route.empty()){
         if(curr_router->routes.count(route[0]) == 0){
@@ -260,6 +265,8 @@ void Router::routeRequest(HttpRequest req, HttpResponse res){
     }
     
 }
+
+// SERVER
 
 Server::Server(){
     this->serverSocket = socket(AF_INET, SOCK_STREAM| SOCK_NONBLOCK, 0); //serverSocket is a file descriptor
