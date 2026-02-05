@@ -34,17 +34,26 @@ class HttpRequest{
     private:
         std::string http_host;
         HttpVerbs http_verb = HttpVerbs::GET;
-        std::string http_path = "/home/about";
+        std::string http_path = "";
+        std::string http_queries = "";
         std::string http_protocol;
+        std::string file_name = "";
+        std::map<std::string,std::string> q_params;
         time_t req_time;
+
+        
     public:
         /// @brief Constructor that takes in a std::string and produces an HttpRequest Object
         /// @param str //The result of running str() on a char buffer of bytes received via websocket
         HttpRequest();
 
         HttpRequest(std::string str);
+
+        std::map<std::string,std::string> parseQueryParamsFromString(std::string str);
         
         std::string getHttpHost();
+
+        std::string getFileName();
 
         std::string getHttpVerbString();
 
@@ -69,7 +78,7 @@ class HttpResponse{
         std::string body;
         int clientSocket;
         
-        std::string format_http_response();
+        
 
         std::string format_headers();
 
@@ -77,7 +86,7 @@ class HttpResponse{
         HttpResponse();
         HttpResponse(int clientSocket);
         HttpResponse(std::string http_protocol, int clientSocket, std::string status_code, std::string status_message, std::map<std::string,std::string> headers, std::string body);
-
+	HttpResponse(std::string http_response_header,std::string http_response_body);
 
         void send();
 
@@ -88,6 +97,8 @@ class HttpResponse{
         void setCode(std::string code, std::string message);
 
         void setProtocol(std::string protocol);
+
+        std::string format_http_response();
 };
 
 class HttpRoute{

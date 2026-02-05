@@ -1,5 +1,7 @@
 #include "../include/pinguin.h"
+#include <exception>
 #include <iostream> //Basic print functions
+#include <stdexcept>
 #include <unistd.h> //To close file descriptors
 #include <sys/socket.h> //Socket functionality
 #include <arpa/inet.h>  //To use the inet_addr function to convert from human readable IP addresses to integer for computer
@@ -7,11 +9,9 @@
 #include <sys/types.h>  //For accept4
 #include <errno.h>//For catching accept4 errorrs
 #include <csignal>//To handle cleanup during debugging.
-#include <format>//Format std::strings
 #include <ctime> //Logging
 #include <map> //For creating a function - route map
 #include <functional> //For passing in functions for mapping to certain routes/verbs
-#include <regex>
 #include <fstream>
 
 //Colors headers from https://stackoverflow.com/questions/2616906/how-do-i-output-coloured-text-to-a-linux-terminal
@@ -45,7 +45,6 @@ std::string COLOR(const std::string& text, const char* color_code) { //Because I
 }
 
 //HTTP REQUEST
-
 HttpRequest::HttpRequest(std::string str) 
 {  
     this->req_time = time(0);
@@ -66,10 +65,28 @@ HttpRequest::HttpRequest(std::string str)
     }
 
     int path_idx = str.find('/');
-    next_break = str.substr(path_idx).find(' ');
-    this->http_path = str.substr(path_idx).substr(0,next_break);
+    next_break = str.substr(path_idx).find('?');
+    if(next_break == -1){
+        next_break = str.substr(path_idx).find(' ');
+    }
+    std::string full_path = str.substr(path_idx).substr(0,next_break);
+    this->file_name = "";
+    if(full_path.find('.') != std::string::npos){
+        this->http_path = full_path.substr(0,full_path.find_last_of('/'));
+        this->file_name = full_path.substr(full_path.find_last_of('/')+1,full_path.length()-(full_path.find_last_of('/')+1));
+    } else {
+        this->http_path = full_path;
+    }
+    if(this->http_path == ""){
+        this->http_path = "/";
+    }   
 
-    int protocol_idx = path_idx + next_break +1;
+    int queries_start_idx = path_idx + next_break + 1;
+    next_break = str.substr(path_idx).find(' ');
+    this->http_queries = str.substr(next_break).substr(0,next_break);
+    this->q_params = parseQueryParamsFromString(this->http_queries);
+
+    int protocol_idx = queries_start_idx + next_break + 1;
     next_break = str.substr(protocol_idx).find('\r');
     this->http_protocol = str.substr(protocol_idx).substr(0,next_break);
         
@@ -77,10 +94,38 @@ HttpRequest::HttpRequest(std::string str)
     next_break = str.substr(str.find("Host")).find('\r');
     this->http_host = str.substr(host_idx+std::string("Host: ").length(),next_break-std::string("Host: ").length()); 
 }
+
+std::map<std::string,std::string> HttpRequest::parseQueryParamsFromString(std::string str){
+    std::map<std::string,std::string> q_params;
+    int start = 0;
+    while(start < str.length()){
+        int eq_idx = str.find('=',start);
+        int amp_idx = str.find('&',start);
+        if(eq_idx == -1){
+            break;
+        }
+        std::string key = str.substr(start,eq_idx-start);
+        std::string val = "";
+        if(amp_idx == -1){
+            val = str.substr(eq_idx+1,str.length()-(eq_idx+1));
+            q_params[key] = val;
+            break;
+        } else {
+            val = str.substr(eq_idx+1,amp_idx-(eq_idx+1));
+            q_params[key] = val;
+            start = amp_idx + 1;
+        }
+    }
+    return q_params;
+}
+
+std::string HttpRequest::getFileName(){
+    return this->file_name;
+}
+
 std::string HttpRequest::getHttpHost(){
     return this->http_host;
 }
-
 HttpVerbs HttpRequest::getHttpVerb(){
     return this->http_verb;
 }
@@ -100,8 +145,6 @@ std::string HttpRequest::getHttpVerbString(){
             return "";
     }
 }   
-
-
 std::string HttpRequest::getHttpPath(){
     return this->http_path;
 }
@@ -118,10 +161,9 @@ void HttpRequest::printToTerminal(){
     char t_buffer[80];
     strftime(t_buffer, sizeof(t_buffer), "%H:%M:%S", localTime); //Format time
     printf(COLOR("%s ==> [%s] %s\n", KYEL).c_str(),t_buffer,this->getHttpVerbString().c_str(), this->getHttpPath().c_str());
-}     
+}
 
 //HTTP RESPONSE
-
 std::string HttpResponse::format_http_response(){
     std::string resp = this->http_protocol + " " + this->status_code + " " + this->status_message + "\r\n"
             + this->format_headers()
@@ -148,13 +190,33 @@ HttpResponse::HttpResponse(std::string http_protocol, int clientSocket, std::str
         this->body = body;
         this->clientSocket=clientSocket;
     }
+HttpResponse::HttpResponse(std::string http_response_header,std::string http_response_body){
+	//TODO: Finish implementing this section of code.
+	this->http_protocol = http_response_header.substr(0,http_response_header.find(" "));
+	http_response_header.erase(0, http_response_header.find(" ") + 1);
+	this->status_code = http_response_header.substr(0,http_response_header.find(" "));
+	http_response_header.erase(0, http_response_header.find(" ") + 1);
+	this->status_message = http_response_header.substr(0,http_response_header.find("\n"));
+	http_response_header.erase(0, http_response_header.find("\n") + 1);
+	std::map<std::string,std::string> headers;
+	while(http_response_header.length() > 0){
+		std::string param_line = http_response_header.substr(0,http_response_header.find("\n"));
+		if(param_line.find(":") == -1){
+			throw std::invalid_argument("Invalid header: \"" + param_line + "\"");	
+		}
+		std::string key = param_line.substr(0,param_line.find(":"));
+		std::string val = param_line.substr(key.length(),param_line.length()-key.length());
+		param_line.erase(0, http_response_header.find("\n") +1);
+	}
+}
+
+
 void HttpResponse::send(){
     std::string formatted_response = this->format_http_response();
-    ssize_t bytes_sent = ::send(this->clientSocket, formatted_response.c_str(), formatted_response.length(), 0);
+    ::send(this->clientSocket, formatted_response.c_str(), formatted_response.length(), 0);
                 
     close(this->clientSocket);
 }
-
 void HttpResponse::sendFile(std::string filePath){
     std::ifstream MyReadFile(filePath);
     std::string file_line;
@@ -165,24 +227,19 @@ void HttpResponse::sendFile(std::string filePath){
     this->body = file_text;
     this->send();
 }
-
 void HttpResponse::setHeaders(std::map<std::string,std::string> new_headers){
     this->headers.insert(new_headers.begin(), new_headers.end());
 }
-
 void HttpResponse::setCode(std::string code, std::string message){
     this->status_code = code;
     this->status_message = message;
 }
-
 void HttpResponse::setProtocol(std::string protocol){
     this->http_protocol = protocol;
 }
 
 //ROUTER
-
 void Router::addRoute(std::deque<std::string> route, HttpVerbs method, std::function<void (HttpRequest, HttpResponse)> callback){
-    //TODO: Implement recursive cases
     
     if (route.empty()){
         route_methods[method] = callback;
@@ -199,7 +256,6 @@ void Router::addRoute(std::deque<std::string> route, HttpVerbs method, std::func
     }
     routes[route_root]->addRoute(route, method, callback); //Calls the private method
 }
-
 std::deque<std::string> Router::splitPathStringToRouteVector(std::string path){
     std::deque<std::string> route;
     if(!path.empty()){
@@ -221,7 +277,6 @@ std::deque<std::string> Router::splitPathStringToRouteVector(std::string path){
 
     return route;
 }
-
 void Router::addRoute(std::string path, HttpVerbs method, std::function<void (HttpRequest, HttpResponse)> callback){
     //Implement base case
     if(path[0] != '/'){
@@ -233,7 +288,6 @@ void Router::addRoute(std::string path, HttpVerbs method, std::function<void (Ht
     }
 this->addRoute(route, method, callback); //Calls the private method
 }
-
 void Router::routeRequest(HttpRequest req, HttpResponse res){
     std::cout << COLOR("RECEIVED REQUEST ON PATH " + req.getHttpPath(), KGRN) << std::endl;
     std::deque<std::string> route = this->splitPathStringToRouteVector(req.getHttpPath());
@@ -267,7 +321,6 @@ void Router::routeRequest(HttpRequest req, HttpResponse res){
 }
 
 // SERVER
-
 Server::Server(){
     this->serverSocket = socket(AF_INET, SOCK_STREAM| SOCK_NONBLOCK, 0); //serverSocket is a file descriptor
     setsockopt(serverSocket,SOL_SOCKET, SO_REUSEADDR, (char *) &this->reuse_addr_val, sizeof(int)); //Sets the socket option of reusing address to 1
@@ -276,14 +329,12 @@ Server::Server(){
     this->serverAddress.sin_addr.s_addr = inet_addr(IP); //Any IP Address
     this->router = Router();
 }
-
 void Server::signal_handler(int signum) {
     std::cout << COLOR("\nInterruped receieved.", KRED) << std::endl;
     if (signum == SIGINT) { // Handle Ctrl+C
         exit_flag = 1;
     }
 }
-
 void Server::listen(){
     if(started){
         throw std::runtime_error("Cannot start server that's alreadys started.");
@@ -354,4 +405,3 @@ void Server::PATCH(std::string path, std::function<void(HttpRequest,HttpResponse
 void Server::DELETE(std::string path, std::function<void(HttpRequest,HttpResponse)> callback){
     this->router.addRoute(path,HttpVerbs::DELETE,callback);
 }
-

@@ -7,10 +7,24 @@ size_t writeFunction(void *ptr, size_t size, size_t nmemb, std::string* data) {
     data->append((char*) ptr, size * nmemb);
     return size * nmemb;
 }
-
+//****HOW Does it work right now?****
+// We have a main thread that does testing
+// We have a child thread that spins up the server for the duration of the test.
 int main(){
     pid_t pid = fork();
     int status;
+    // The goal is to create a testing framework
+    // #############
+    // # THE PLAN  #
+    // #############
+    // CHECKIF('GET /api succeeds with 200 OK', []()=>{
+    //  //...assume we make an http request and the code is in `response_code` var
+    //  //...assume we monitored the timing of this too for some reason in a time int for seconds
+    //  FAILIF(response_code!=200, "Returned with " + response_code);
+    //  WARNIF(time > 5, "Took longer than 3 seconds);//Specific issue we monitor but don't consider a failure
+    //  PASSIF(response_code==200, "Received 200 response!");
+    // });
+
     if(pid == -1){
         perror("fork");
         exit(EXIT_FAILURE);
@@ -31,6 +45,7 @@ int main(){
             /* pass in a pointer to the data - libcurl will not copy */
 
             curl_easy_perform(curl);
+            
             std::cout << response_string << std::endl;
         }
         waitpid(pid, &status, 0);
